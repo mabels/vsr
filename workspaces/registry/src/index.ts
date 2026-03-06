@@ -506,9 +506,48 @@ app.put('/:pkg', async (c: any) => {
 
   try {
     const body = await c.req.json()
-    console.log(`[PUBLISH] Package data received for ${pkg}, versions: ${Object.keys(body.versions || {}).length}`)
+    const versions = body.versions || {}
+    const distTags = body['dist-tags'] || {}
+    const attachments = body._attachments || {}
 
-    // For development, just return success
+    console.log(`[PUBLISH] Package data received for ${pkg}, versions: ${Object.keys(versions).length}`)
+
+    if (c.env.DEV_STORAGE_ENABLED !== 'true') {
+      console.log(`[PUBLISH] DEV_STORAGE_ENABLED is not set — skipping DB/R2 writes for ${pkg}`)
+      return c.json({
+        ok: true,
+        id: pkg,
+        rev: '1-' + Math.random().toString(36).substr(2, 10)
+      })
+    }
+
+    // Save package dist-tags
+    await c.db.upsertPackage(pkg, distTags)
+
+    // Save each version manifest
+    const publishedAt = new Date().toISOString()
+    for (const [version, manifest] of Object.entries(versions)) {
+      const spec = `${pkg}@${version}`
+      await c.db.upsertVersion(spec, manifest as Record<string, any>, publishedAt)
+      console.log(`[PUBLISH] Saved version: ${spec}`)
+    }
+
+    // Save tarballs to R2
+    for (const [filename, attachment] of Object.entries(attachments as Record<string, any>)) {
+      try {
+        const data = attachment.data
+        if (!data) continue
+        const buffer = Buffer.from(data, 'base64')
+        const key = `${pkg}/${filename}`
+        await c.env.BUCKET.put(key, buffer, {
+          httpMetadata: { contentType: 'application/octet-stream' }
+        })
+        console.log(`[PUBLISH] Stored tarball: ${key}`)
+      } catch (err) {
+        console.error(`[PUBLISH ERROR] Failed to store tarball ${filename}: ${(err as Error).message}`)
+      }
+    }
+
     return c.json({
       ok: true,
       id: pkg,
