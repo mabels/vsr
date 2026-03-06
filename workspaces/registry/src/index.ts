@@ -532,7 +532,7 @@ app.get('/:pkg', async (c: any) => {
   const defaultUpstream = getDefaultUpstream()
   console.log(`[REDIRECT] Redirecting ${pkg} to default upstream: ${defaultUpstream}`)
 
-  return c.redirect(`/${defaultUpstream}/${pkg}`, 302)
+  return c.redirect(`/${defaultUpstream}/${pkg.replace('/', '%2f')}`, 302)
 })
 
 // ---------------------------------------------------------
