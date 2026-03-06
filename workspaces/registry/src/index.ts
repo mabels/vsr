@@ -442,6 +442,19 @@ app.get('/:upstream/:pkg/-/:tarball', async (c: any) => {
   const pkg = c.req.param('pkg')
   const tarball = c.req.param('tarball')
 
+  // If "upstream" starts with '@' it's actually a scoped package name, not an upstream
+  // e.g. /@fireproof/core/-/core-1.0.0.tgz → treat as local scoped tarball
+  if (upstream.startsWith('@')) {
+    const originalParam = c.req.param
+    c.req.param = (key: string) => {
+      if (key === 'scope') return upstream
+      if (key === 'pkg') return pkg
+      if (key === 'tarball') return tarball
+      return originalParam.call(c.req, key)
+    }
+    return getPackageTarball(c)
+  }
+
   // Validate upstream name
   if (!isValidUpstreamName(upstream)) {
     return c.json({ error: `Invalid or reserved upstream name: ${upstream}` }, 400)

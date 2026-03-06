@@ -322,12 +322,16 @@ export async function getPackageTarball(c: HonoContext) {
     // If file doesn't exist and proxying is enabled, try to get it from upstream
     if (PROXY) {
       try {
-        // Construct the correct URL for scoped and unscoped packages
-        const tarballPath = pkg.includes('/') ?
-          `${pkg}/-/${tarball}` :
-          `${pkg}/-/${tarball}`
+        const tarballPath = `${pkg}/-/${tarball}`
 
-        const source = `${PROXY_URL}/${tarballPath}`
+        // Use the upstream URL from context if available, otherwise fall back to PROXY_URL
+        const upstreamName = (c as any).upstream
+        const upstreamCfg = upstreamName ? getUpstreamConfig(upstreamName) : null
+        const proxyBase = (upstreamCfg && upstreamCfg.type !== 'local')
+          ? upstreamCfg.url.replace(/\/$/, '')
+          : PROXY_URL
+
+        const source = `${proxyBase}/${tarballPath}`
         console.log(`[PROXY] Fetching tarball from ${source}`)
 
         // First do a HEAD request to check size
