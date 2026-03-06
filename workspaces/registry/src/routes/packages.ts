@@ -35,6 +35,12 @@ function getDomain(c: HonoContext): string {
   return `${url.protocol}//${c.req.header('host') || url.host}`
 }
 
+function localTarballUrl(c: HonoContext, pkg: string, version: string): string {
+  const shortName = pkg.split('/').pop() || pkg
+  const encodedPkg = pkg.includes('/') ? pkg.replace('/', '%2f') : pkg
+  return `${getDomain(c)}/local/${encodedPkg}/-/${shortName}-${version}.tgz`
+}
+
 interface SlimPackumentContext {
   protocol?: string
   host?: string
@@ -324,10 +330,15 @@ export async function getPackageTarball(c: HonoContext) {
       try {
         const tarballPath = `${pkg}/-/${tarball}`
 
-        // Use the upstream URL from context if available, otherwise fall back to PROXY_URL
         const upstreamName = (c as any).upstream
         const upstreamCfg = upstreamName ? getUpstreamConfig(upstreamName) : null
-        const proxyBase = (upstreamCfg && upstreamCfg.type !== 'local')
+
+        // Never proxy local-type upstream — tarball should be in R2 or it's a 404
+        if (upstreamCfg?.type === 'local') {
+          return c.json({ error: 'Not found' }, 404)
+        }
+
+        const proxyBase = (upstreamCfg && upstreamCfg.url)
           ? upstreamCfg.url.replace(/\/$/, '')
           : PROXY_URL
 
@@ -521,7 +532,7 @@ export async function getPackageManifest(c: HonoContext) {
         version: resolvedVersion,
         dist: {
           ...slimmedManifest.dist,
-          tarball: `${getDomain(c)}/${createFile({ pkg, version: resolvedVersion })}`,
+          tarball: localTarballUrl(c, pkg, resolvedVersion),
         }
       }
 
@@ -900,7 +911,7 @@ export async function getPackagePackument(c: HonoContext) {
           // Use slimManifest and rewrite tarball URL to point to our registry
           const version = (versionData as any).version
           const slim = slimManifest((versionData as any).manifest)
-          slim.dist = { ...slim.dist, tarball: `${getDomain(c)}/${createFile({ pkg: name, version })}` }
+          slim.dist = { ...slim.dist, tarball: localTarballUrl(c, name, version) }
           packageData.versions[version] = slim
           packageData.time[version] = (versionData as any).published_at
         }
@@ -913,7 +924,7 @@ export async function getPackagePackument(c: HonoContext) {
           const versionData = await c.db.getVersion(`${name}@${latestVersion}`)
           if (versionData) {
             const slim = slimManifest(versionData.manifest)
-            slim.dist = { ...slim.dist, tarball: `${getDomain(c)}/${createFile({ pkg: name, version: latestVersion })}` }
+            slim.dist = { ...slim.dist, tarball: localTarballUrl(c, name, latestVersion) }
             packageData.versions[latestVersion] = slim
             packageData.time[latestVersion] = (versionData as any).published_at
           } else {
