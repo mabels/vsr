@@ -872,8 +872,10 @@ export async function getPackagePackument(c: HonoContext) {
 
       if (!allVersions || allVersions.length === 0) {
         // Nothing found locally — try non-local upstreams as fallback
-        const fallbackUpstreamName = Object.entries(ORIGIN_CONFIG.upstreams)
-          .find(([, cfg]) => cfg.type !== 'local')?.[0]
+        const fallbackUpstreamName = (
+          Object.entries(ORIGIN_CONFIG.upstreams).find(([, cfg]) => cfg.type === 'npm') ||
+          Object.entries(ORIGIN_CONFIG.upstreams).find(([, cfg]) => cfg.type !== 'local')
+        )?.[0]
         if (fallbackUpstreamName) {
           console.log(`[FALLBACK] Package ${name} not found locally, trying upstream: ${fallbackUpstreamName}`)
           ;(c as any).upstream = fallbackUpstreamName
