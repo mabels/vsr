@@ -3,7 +3,7 @@ import validate from 'validate-npm-package-name'
 // @ts-ignore
 import * as semver from 'semver'
 import { accepts } from 'hono/accepts'
-import { PROXY, PROXY_URL } from '../../config.ts'
+import { PROXY, PROXY_URL, ORIGIN_CONFIG } from '../../config.ts'
 import {
   parsePackageSpec,
   getUpstreamConfig,
@@ -842,7 +842,7 @@ export async function getPackagePackument(c: HonoContext) {
       }
     }
 
-    // Fallback to original logic when PROXY is disabled
+    // Local upstream: check DB first, then fall back to non-local upstreams if not found
     const pkg = await c.db.getPackage(name)
     const now = new Date()
 
@@ -869,6 +869,17 @@ export async function getPackagePackument(c: HonoContext) {
     // Get all versions for this package
     try {
       const allVersions = await c.db.getVersionsByPackage(name)
+
+      if (!allVersions || allVersions.length === 0) {
+        // Nothing found locally — try non-local upstreams as fallback
+        const fallbackUpstreamName = Object.entries(ORIGIN_CONFIG.upstreams)
+          .find(([, cfg]) => cfg.type !== 'local')?.[0]
+        if (fallbackUpstreamName) {
+          console.log(`[FALLBACK] Package ${name} not found locally, trying upstream: ${fallbackUpstreamName}`)
+          ;(c as any).upstream = fallbackUpstreamName
+          return getPackagePackument(c)
+        }
+      }
 
       if (allVersions && allVersions.length > 0) {
         console.log(`[DEBUG] Found ${allVersions.length} versions for ${name} in the database`)
