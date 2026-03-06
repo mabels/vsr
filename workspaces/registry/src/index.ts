@@ -446,7 +446,8 @@ app.get('/:upstream/:pkg/-/:tarball', async (c: any) => {
   // e.g. /@fireproof/core/-/core-1.0.0.tgz → treat as local scoped tarball
   if (upstream.startsWith('@')) {
     const originalParam = c.req.param
-    c.req.param = (key: string) => {
+    c.req.param = (key?: string) => {
+      if (key === undefined) return { scope: upstream, pkg, tarball }
       if (key === 'scope') return upstream
       if (key === 'pkg') return pkg
       if (key === 'tarball') return tarball
