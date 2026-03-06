@@ -724,7 +724,10 @@ export async function getPackagePackument(c: HonoContext) {
     }
 
     // Use racing cache strategy when PROXY is enabled or upstream is specified
-    const upstream = (c as any).upstream || (PROXY ? 'npm' : null)
+    // Skip for 'local' upstream type — that's this registry itself, fetching from it would loop
+    const upstreamName = (c as any).upstream || (PROXY ? 'npm' : null)
+    const upstreamTypeConfig = upstreamName ? getUpstreamConfig(upstreamName) : null
+    const upstream = (upstreamTypeConfig && upstreamTypeConfig.type !== 'local') ? upstreamName : null
     if (upstream) {
       console.log(`[RACING] Using racing cache strategy for packument: ${name} from upstream: ${upstream}`)
 
