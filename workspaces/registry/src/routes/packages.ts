@@ -875,9 +875,12 @@ export async function getPackagePackument(c: HonoContext) {
             continue
           }
 
-          // Use slimManifest to create a smaller response
-          packageData.versions[(versionData as any).version] = slimManifest((versionData as any).manifest)
-          packageData.time[(versionData as any).version] = (versionData as any).published_at
+          // Use slimManifest and rewrite tarball URL to point to our registry
+          const version = (versionData as any).version
+          const slim = slimManifest((versionData as any).manifest)
+          slim.dist = { ...slim.dist, tarball: `${DOMAIN}/${createFile({ pkg: name, version })}` }
+          packageData.versions[version] = slim
+          packageData.time[version] = (versionData as any).published_at
         }
       } else {
         console.log(`[DEBUG] No versions found for ${name} in the database`)
@@ -887,7 +890,9 @@ export async function getPackagePackument(c: HonoContext) {
         if (latestVersion && (!isValidRange || semver.satisfies(latestVersion, versionRange))) {
           const versionData = await c.db.getVersion(`${name}@${latestVersion}`)
           if (versionData) {
-            packageData.versions[latestVersion] = slimManifest(versionData.manifest)
+            const slim = slimManifest(versionData.manifest)
+            slim.dist = { ...slim.dist, tarball: `${DOMAIN}/${createFile({ pkg: name, version: latestVersion })}` }
+            packageData.versions[latestVersion] = slim
             packageData.time[latestVersion] = (versionData as any).published_at
           } else {
             // Create a mock version for testing

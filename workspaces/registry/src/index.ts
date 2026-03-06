@@ -524,19 +524,24 @@ app.put('/:pkg', async (c: any) => {
       console.log(`[PUBLISH] Saved version: ${spec}`)
     }
 
-    // Save tarballs to R2
-    for (const [filename, attachment] of Object.entries(attachments as Record<string, any>)) {
+    // Save tarballs to R2 using standard key format: pkg/shortname-version.tgz
+    const shortName = pkg.split('/').pop() || pkg
+    for (const [version] of Object.entries(versions)) {
+      const standardFilename = `${shortName}-${version}.tgz`
+      const attachment = attachments[standardFilename] ||
+        Object.values(attachments as Record<string, any>).find((_: any, i: number) =>
+          Object.keys(attachments)[i]?.includes(version)
+        )
+      if (!attachment?.data) continue
       try {
-        const data = attachment.data
-        if (!data) continue
-        const buffer = Buffer.from(data, 'base64')
-        const key = `${pkg}/${filename}`
+        const buffer = Buffer.from(attachment.data, 'base64')
+        const key = `${pkg}/${standardFilename}`
         await c.env.BUCKET.put(key, buffer, {
           httpMetadata: { contentType: 'application/octet-stream' }
         })
         console.log(`[PUBLISH] Stored tarball: ${key}`)
       } catch (err) {
-        console.error(`[PUBLISH ERROR] Failed to store tarball ${filename}: ${(err as Error).message}`)
+        console.error(`[PUBLISH ERROR] Failed to store tarball ${standardFilename}: ${(err as Error).message}`)
       }
     }
 
