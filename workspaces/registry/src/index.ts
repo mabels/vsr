@@ -305,6 +305,20 @@ app.get('/:upstream/:pkg', async (c: any) => {
 
   console.log(`[UPSTREAM ROUTE] Called with upstream=${upstream}, pkg=${pkg}`)
 
+  // If "upstream" starts with '@' it's actually a scoped package, not an upstream
+  // e.g. /@fireproof/use-fireproof → treat as local scoped package lookup
+  if (upstream.startsWith('@')) {
+    const fullPkg = `${upstream}/${pkg}`
+    const originalParam = c.req.param
+    c.req.param = (key?: string) => {
+      if (key === undefined) return { scope: fullPkg, pkg: fullPkg }
+      if (key === 'scope') return fullPkg
+      if (key === 'pkg') return fullPkg
+      return originalParam.call(c.req, key)
+    }
+    return getPackagePackument(c)
+  }
+
   // Validate upstream name
   if (!isValidUpstreamName(upstream)) {
     console.log(`[UPSTREAM ROUTE] Invalid upstream name: ${upstream}`)
@@ -319,14 +333,15 @@ app.get('/:upstream/:pkg', async (c: any) => {
 
   console.log(`[UPSTREAM] Package request for ${pkg} from ${upstream}`)
 
-      // Set upstream context and forward to package handler
+  // Set upstream context and forward to package handler
   c.upstream = upstream
 
   // Create a mock parameter function that returns the package name as both scope and pkg
   const originalParam = c.req.param
-  c.req.param = (key: string) => {
+  c.req.param = (key?: string) => {
+    if (key === undefined) return { scope: pkg, pkg }
     if (key === 'scope') return pkg
-    if (key === 'pkg') return pkg  // Return the package name for 'pkg' parameter too
+    if (key === 'pkg') return pkg
     return originalParam.call(c.req, key)
   }
 
