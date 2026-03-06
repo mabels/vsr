@@ -309,6 +309,7 @@ app.get('/:upstream/:pkg', async (c: any) => {
   // e.g. /@fireproof/use-fireproof → treat as local scoped package lookup
   if (upstream.startsWith('@')) {
     const fullPkg = `${upstream}/${pkg}`
+    c.upstream = 'local'
     const originalParam = c.req.param
     c.req.param = (key?: string) => {
       if (key === undefined) return { scope: fullPkg, pkg: fullPkg }

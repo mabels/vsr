@@ -915,6 +915,32 @@ export async function getPackagePackument(c: HonoContext) {
           packageData.versions[version] = slim
           packageData.time[version] = (versionData as any).published_at
         }
+
+        // Merge with npm upstream versions — local versions take precedence
+        const npmUpstreamName = Object.entries(ORIGIN_CONFIG.upstreams)
+          .find(([, cfg]) => cfg.type === 'npm')?.[0]
+        if (npmUpstreamName && PROXY) {
+          try {
+            const npmConfig = getUpstreamConfig(npmUpstreamName)!
+            const npmUrl = buildUpstreamUrl(npmConfig, name)
+            const npmResponse = await fetch(npmUrl, { headers: { 'Accept': 'application/json', 'User-Agent': 'vlt-serverless-registry' } })
+            if (npmResponse.ok) {
+              const npmData = await npmResponse.json() as any
+              const protocol = new URL(c.req.url).protocol.slice(0, -1)
+              const host = c.req.header('host') || 'localhost:1337'
+              const context = { protocol, host, upstream: npmUpstreamName }
+              for (const [version, manifest] of Object.entries(npmData.versions || {})) {
+                if (!packageData.versions[version]) {
+                  packageData.versions[version] = slimManifest(manifest as any, context)
+                }
+              }
+              // Merge dist-tags — local takes precedence
+              packageData['dist-tags'] = { ...(npmData['dist-tags'] || {}), ...packageData['dist-tags'] }
+            }
+          } catch (e) {
+            console.log(`[MERGE] Could not fetch npm versions for ${name}: ${(e as Error).message}`)
+          }
+        }
       } else {
         console.log(`[DEBUG] No versions found for ${name} in the database`)
 
