@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { EXPOSE_DOCS, API_DOCS, VERSION } from '../config.ts'
 import * as Sentry from "@sentry/cloudflare"
 import { Hono } from 'hono'
@@ -511,15 +512,6 @@ app.put('/:pkg', async (c: any) => {
     const attachments = body._attachments || {}
 
     console.log(`[PUBLISH] Package data received for ${pkg}, versions: ${Object.keys(versions).length}`)
-
-    if (c.env.DEV_STORAGE_ENABLED !== 'true') {
-      console.log(`[PUBLISH] DEV_STORAGE_ENABLED is not set — skipping DB/R2 writes for ${pkg}`)
-      return c.json({
-        ok: true,
-        id: pkg,
-        rev: '1-' + Math.random().toString(36).substr(2, 10)
-      })
-    }
 
     // Save package dist-tags
     await c.db.upsertPackage(pkg, distTags)

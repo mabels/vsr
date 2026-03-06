@@ -439,8 +439,6 @@ export interface Environment {
   WORKOS_PROVIDER?: string
   WORKOS_REDIRECT_URI?: string
   WORKOS_COOKIE_PASSWORD?: string
-  /** Set to "true" to enable persistent storage (DB + R2) in dev mode */
-  DEV_STORAGE_ENABLED?: string
   CF?: {
     connecting_ip?: string
   }
