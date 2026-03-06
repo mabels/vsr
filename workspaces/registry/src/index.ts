@@ -519,15 +519,13 @@ app.post('/-/npm/v1/security/advisories/bulk', async (c: any) => {
   return c.json({})
 })
 
-// Handle package publishing
-app.put('/:pkg', async (c: any) => {
-  const pkg = decodeURIComponent(c.req.param('pkg'))
+// Shared publish logic
+async function publishPackage(c: any, pkg: string) {
   const authHeader = c.req.header('authorization') || c.req.header('Authorization')
 
   console.log(`[PUBLISH] Publishing package: ${pkg}`)
   console.log(`[PUBLISH] Auth header: ${authHeader ? 'provided' : 'missing'}`)
 
-  // Check for authentication
   if (!authHeader) {
     return c.json({
       error: 'Authentication required',
@@ -543,10 +541,8 @@ app.put('/:pkg', async (c: any) => {
 
     console.log(`[PUBLISH] Package data received for ${pkg}, versions: ${Object.keys(versions).length}`)
 
-    // Save package dist-tags
     await c.db.upsertPackage(pkg, distTags)
 
-    // Save each version manifest
     const publishedAt = new Date().toISOString()
     for (const [version, manifest] of Object.entries(versions)) {
       const spec = `${pkg}@${version}`
@@ -554,7 +550,6 @@ app.put('/:pkg', async (c: any) => {
       console.log(`[PUBLISH] Saved version: ${spec}`)
     }
 
-    // Save tarballs to R2 using standard key format: pkg/shortname-version.tgz
     const shortName = pkg.split('/').pop() || pkg
     for (const [version] of Object.entries(versions)) {
       const standardFilename = `${shortName}-${version}.tgz`
@@ -584,6 +579,17 @@ app.put('/:pkg', async (c: any) => {
     console.error(`[PUBLISH ERROR] ${(err as Error).message}`)
     return c.json({ error: 'Invalid package data' }, 400)
   }
+}
+
+// Handle scoped package publishing (PUT /@scope%2fpkg)
+app.put('/:scope%2f:pkg', async (c: any) => {
+  const pkg = `${c.req.param('scope')}/${c.req.param('pkg')}`
+  return publishPackage(c, pkg)
+})
+
+// Handle unscoped package publishing (PUT /pkg or PUT /@scope%2fpkg if %2f not decoded)
+app.put('/:pkg', async (c: any) => {
+  return publishPackage(c, decodeURIComponent(c.req.param('pkg')))
 })
 
 // Redirect root-level packages to default upstream (for backward compatibility)
