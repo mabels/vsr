@@ -3,7 +3,7 @@ import validate from 'validate-npm-package-name'
 // @ts-ignore
 import * as semver from 'semver'
 import { accepts } from 'hono/accepts'
-import { DOMAIN, PROXY, PROXY_URL } from '../../config.ts'
+import { PROXY, PROXY_URL } from '../../config.ts'
 import {
   parsePackageSpec,
   getUpstreamConfig,
@@ -29,6 +29,11 @@ import type {
   UpstreamConfig,
   PackageSpec
 } from '../../types.ts'
+
+function getDomain(c: HonoContext): string {
+  const url = new URL(c.req.url)
+  return `${url.protocol}//${c.req.header('host') || url.host}`
+}
 
 interface SlimPackumentContext {
   protocol?: string
@@ -512,7 +517,7 @@ export async function getPackageManifest(c: HonoContext) {
         version: resolvedVersion,
         dist: {
           ...slimmedManifest.dist,
-          tarball: `${DOMAIN}/${createFile({ pkg, version: resolvedVersion })}`,
+          tarball: `${getDomain(c)}/${createFile({ pkg, version: resolvedVersion })}`,
         }
       }
 
@@ -878,7 +883,7 @@ export async function getPackagePackument(c: HonoContext) {
           // Use slimManifest and rewrite tarball URL to point to our registry
           const version = (versionData as any).version
           const slim = slimManifest((versionData as any).manifest)
-          slim.dist = { ...slim.dist, tarball: `${DOMAIN}/${createFile({ pkg: name, version })}` }
+          slim.dist = { ...slim.dist, tarball: `${getDomain(c)}/${createFile({ pkg: name, version })}` }
           packageData.versions[version] = slim
           packageData.time[version] = (versionData as any).published_at
         }
@@ -891,7 +896,7 @@ export async function getPackagePackument(c: HonoContext) {
           const versionData = await c.db.getVersion(`${name}@${latestVersion}`)
           if (versionData) {
             const slim = slimManifest(versionData.manifest)
-            slim.dist = { ...slim.dist, tarball: `${DOMAIN}/${createFile({ pkg: name, version: latestVersion })}` }
+            slim.dist = { ...slim.dist, tarball: `${getDomain(c)}/${createFile({ pkg: name, version: latestVersion })}` }
             packageData.versions[latestVersion] = slim
             packageData.time[latestVersion] = (versionData as any).published_at
           } else {
@@ -901,7 +906,7 @@ export async function getPackagePackument(c: HonoContext) {
               version: latestVersion,
               description: `Mock package for ${name}`,
               dist: {
-                tarball: `${DOMAIN}/${name}/-/${name}-${latestVersion}.tgz`
+                tarball: `${getDomain(c)}/${name}/-/${name}-${latestVersion}.tgz`
               }
             }
           }
@@ -918,7 +923,7 @@ export async function getPackagePackument(c: HonoContext) {
           version: latestVersion,
           description: `Package ${name}`,
           dist: {
-            tarball: `${DOMAIN}/${name}/-/${name}-${latestVersion}.tgz`
+            tarball: `${getDomain(c)}/${name}/-/${name}-${latestVersion}.tgz`
           }
         }
       }
